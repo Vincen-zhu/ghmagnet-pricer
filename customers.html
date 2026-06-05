@@ -98,6 +98,15 @@ input[type=file]{display:none}
 .prod-count{font-size:11px;color:#888;margin-bottom:4px}
 .prod-summary-item{display:inline-block;background:#e8edf5;border-radius:4px;padding:1px 6px;font-size:10px;color:#333;margin:1px 2px 1px 0}
 </style>
+<!-- AiPexBase SDK for cloud storage -->
+<script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
+<script>
+const CUST_BASE_URL = 'https://baas.kuafuai.net/baas-api';
+const CUST_API_KEY = 'baas_nblMHVcE';
+const CUST_TABLE = 'table_customers_v2';
+const PROD_TABLE = 'table_products';
+var allProducts = [];
+</script>
 </head>
 <body>
 
@@ -175,8 +184,104 @@ var LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0Z
 var customers = [];
 var editId = null;
 
-function load(){ try{ var d=localStorage.getItem("ghm_cust"); if(d) customers=JSON.parse(d); }catch(e){} if(!Array.isArray(customers)) customers=[]; }
-function save(){ localStorage.setItem("ghm_cust",JSON.stringify(customers)); renderList(); }
+var custClient = null;
+function ensureCustClient() {
+  if(!custClient && typeof aipexbase !== 'undefined') {
+    custClient = aipexbase.createClient({ baseUrl: CUST_BASE_URL, apiKey: CUST_API_KEY });
+  }
+  return custClient;
+}
+
+// 从云加载客户数据
+async function loadCustomersFromCloud() {
+  try {
+    var c = ensureCustClient();
+    if(!c) return;
+    var res = await c.db.from(CUST_TABLE).list();
+    if(res.success && res.data && res.data.length) {
+      customers = res.data.map(function(row) {
+        return {
+          id: row.cust_id || '',
+          name: row.cust_name || '',
+          contact: row.cust_contact || '',
+          phone: row.cust_phone || '',
+          address: row.cust_address || '',
+          remark: row.cust_remark || ''
+        };
+      });
+      renderList();
+    }
+  } catch(e) { console.error('云加载客户失败', e); }
+}
+
+// 全量同步客户数据到云
+async function syncCustomersToCloud() {
+  try {
+    var c = ensureCustClient();
+    if(!c) return;
+    // 删掉旧数据
+    var old = await c.db.from(CUST_TABLE).list();
+    if(old.success && old.data) {
+      for(var i=0;i<old.data.length;i++) {
+        await c.db.from(CUST_TABLE).delete().eq('id', old.data[i].id);
+      }
+    }
+    // 插入新数据
+    for(var i=0;i<customers.length;i++) {
+      var row = customers[i];
+      await c.db.from(CUST_TABLE).insert().values({
+        cust_id: String(row.id || ''),
+        cust_name: String(row.name || ''),
+        cust_contact: String(row.contact || ''),
+        cust_phone: String(row.phone || ''),
+        cust_address: String(row.address || ''),
+        cust_remark: String(row.remark || '')
+      });
+    }
+  } catch(e) { console.error('云同步客户失败', e); }
+}
+
+// 从云加载产品历史
+async function loadProductsFromCloud() {
+  try {
+    var c = ensureCustClient();
+    if(!c) return;
+    var res = await c.db.from(PROD_TABLE).list();
+    if(res.success && res.data) {
+      allProducts = res.data.map(function(row) {
+        return {
+          cust_name: row.cust_name || '',
+          phone: row.cust_phone || '',
+          product: row.product_name || '',
+          spec: row.spec || '',
+          material: row.material || '',
+          coating: row.coating || '',
+          price: row.unit_price || '',
+          price_type: row.price_type || '',
+          gauss: row.gauss || '',
+          remark: row.remark || ''
+        };
+      });
+    }
+  } catch(e) { console.error('加载产品失败', e); }
+}
+
+function getProductsByName(name) {
+  if(!name || !allProducts.length) return [];
+  return allProducts.filter(function(p) { return p.cust_name.indexOf(name) >= 0 || name.indexOf(p.cust_name) >= 0; });
+}
+
+function load(){
+  try{ var d=localStorage.getItem("ghm_cust"); if(d) customers=JSON.parse(d); }catch(e){}
+  if(!Array.isArray(customers)) customers=[];
+  loadCustomersFromCloud();
+  loadProductsFromCloud();
+}
+function save(){
+  localStorage.setItem("ghm_cust",JSON.stringify(customers));
+  syncCustomersToCloud();
+  renderList();
+}
 function idgen(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
 function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); },2000); }
 
@@ -446,6 +551,20 @@ function renderList(){
       ps=tags.join("");
       if(c.prods.length>10) ps+='<span class="prod-summary-item" style="background:#fff3e0">+'+(c.prods.length-10)+'</span>';
     }
+    
+    // 云产品历史
+    var cloudProds = getProductsByName(c.name || '');
+    if(cloudProds.length) {
+      var tags2 = [];
+      cloudProds.slice(0,5).forEach(function(p) {
+        tags2.push('<span class="prod-summary-item" style="background:#e8f5e9">'+p.spec+'</span>');
+      });
+      if(ps) ps += '';
+      ps += '<div style="margin-top:3px;font-size:10px;color:#666">📋 历史: ' + tags2.join('');
+      if(cloudProds.length > 5) ps += '<span class="prod-summary-item" style="background:#e8f5e9">+'+(cloudProds.length-5)+'</span>';
+      ps += '</div>';
+    }
+    
     var info="";
     if(c.payTerm) info+='<div style="font-size:11px;color:#999;margin-top:2px">\u{1F4C5} 账期: '+c.payTerm+'天</div>';
     if(c.tax) info+='<div style="font-size:11px;color:#999;margin-top:2px">\u{1F4B0} '+(c.tax==="1"?"含税":"不含税")+'</div>';
@@ -456,7 +575,7 @@ function renderList(){
     h+='<div class="cust-item" onclick="editCust(\''+c.id+'\')">';
     h+='<button class="del-btn" onclick="event.stopPropagation();delCust(\''+c.id+'\')">\u2715</button>';
     h+='<div class="name">'+(c.name||"(未命名)")+'</div>';
-    h+='<div class="phone">'+(c.phone||c.contact?((c.phone||"")+(c.contact?" \u00b7 "+c.contact:"")).trim():"")+'</div>';
+    h+='<div class="phone">'+(c.phone||c.contact?((c.phone||"")+(c.contact?" \u00b7 "+c.contact:"")).trim():(cloudProds.length && cloudProds[0].phone?'☎'+cloudProds[0].phone:''))+'</div>';
     if(c.prods&&c.prods.length) h+='<div style="font-size:11px;color:#888;margin-top:2px">\uD83E\uDEF2 '+c.prods.length+' 款产品 <button class="add-prod-btn" onclick="event.stopPropagation();quickAddProd(\''+c.id+'\')">+ 添加产品</button></div>';
     if(ps) h+='<div class="prod-summary">'+ps+'</div>';
     h+=info;
