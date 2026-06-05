@@ -505,7 +505,23 @@ function editCust(id){
       document.getElementById("fPayTerm").value=c.payTerm||"";
       document.getElementById("fTax").value=c.tax||"";
       document.getElementById("prodContainer").innerHTML="";
-      if(c.prods&&c.prods.length){c.prods.forEach(function(m){addProduct(m)})}
+      // 如果有本地产品就显示，否则从云端加载历史产品
+      if(c.prods&&c.prods.length){
+        c.prods.forEach(function(m){addProduct(m)});
+      } else {
+        // 从云端加载该客户的历史产品
+        var cloudProds = getProductsByName(c.name || '');
+        if(cloudProds.length) {
+          cloudProds.forEach(function(p){
+            addProduct({
+              spec: p.spec || '',
+              price: p.price || '',
+              material: p.material || '',
+              coating: p.coating || ''
+            });
+          });
+        }
+      }
       updateProdCount();renderProducts();switchView("add");
       return;
     }
