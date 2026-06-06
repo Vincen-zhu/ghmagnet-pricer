@@ -264,6 +264,7 @@ async function loadProductsFromCloud() {
       });
     }
   } catch(e) { console.error('加载产品失败', e); }
+  if(typeof renderList==='function') renderList();
 }
 
 function getProductsByName(name) {
@@ -523,6 +524,8 @@ function editCust(id){
   for(var i=0;i<customers.length;i++){
     if(customers[i].id===id){
       var c=customers[i];editId=id;
+      // 如果 prods 为空，尝试从云端产品实时匹配
+      if(!c.prods||!c.prods.length){var cp=getProductsByName(c.name||'');if(cp&&cp.length){c.prods=cp.map(function(p){return{spec:p.spec||'',price:p.price||'',realGs:p.material||p.gauss||'',reportGs:p.gauss||'',temp:'',note:(p.coating||'')+(p.remark?' | '+p.remark:''),draws:[]}})};try{localStorage.setItem('ghm_cust',JSON.stringify(customers))}catch(e){}}}
       document.getElementById("formTitle").textContent="编辑客户";
       document.getElementById("fName").value=c.name||"";
       document.getElementById("fContact").value=c.contact||"";
