@@ -102,7 +102,7 @@ input[type=file]{display:none}
 <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
 <script>
 const CUST_BASE_URL = 'https://baas.kuafuai.net/baas-api';
-const CUST_API_KEY = 'baas_0PmYKHSz';
+const CUST_API_KEY = 'baas_1BQP4GLQ';
 const CUST_TABLE = 'table_customers_v2';
 const PROD_TABLE = 'table_products';
 var allProducts = [];
@@ -271,11 +271,37 @@ function getProductsByName(name) {
   return allProducts.filter(function(p) { return p.cust_name.indexOf(name) >= 0 || name.indexOf(p.cust_name) >= 0; });
 }
 
+function mergeCloudProds(){
+  if(!window.customers||!window.allProducts) return;
+  var map={};
+  window.allProducts.forEach(function(p){
+    var n=p.cust_name; if(!n) return;
+    if(!map[n]) map[n]=[];
+    map[n].push({spec:p.spec||'',price:p.price||'',realGs:p.material||p.gauss||'',reportGs:p.gauss||'',temp:'',note:(p.coating||'')+(p.remark?' | '+p.remark:''),draws:[]});
+  });
+  var merged=0;
+  window.customers.forEach(function(c){ if(map[c.name]){ c.prods=map[c.name]; merged++; } });
+  try{ localStorage.setItem('ghm_cust',JSON.stringify(window.customers)); }catch(e){}
+  console.log('merged '+merged+' customers');
+  return merged;
+}
+
+var _loadMergeTimer=null;
 function load(){
   try{ var d=localStorage.getItem("ghm_cust"); if(d) customers=JSON.parse(d); }catch(e){}
   if(!Array.isArray(customers)) customers=[];
   loadCustomersFromCloud();
   loadProductsFromCloud();
+  if(_loadMergeTimer) clearInterval(_loadMergeTimer);
+  _loadMergeTimer=setInterval(function(){
+    if(window.customers&&window.customers.length&&window.allProducts&&window.allProducts.length){
+      mergeCloudProds();
+      if(typeof renderList==='function') renderList();
+      clearInterval(_loadMergeTimer);
+      _loadMergeTimer=null;
+    }
+  },500);
+  setTimeout(function(){ if(_loadMergeTimer){ clearInterval(_loadMergeTimer); _loadMergeTimer=null; } },15000);
 }
 function save(){
   localStorage.setItem("ghm_cust",JSON.stringify(customers));
@@ -505,23 +531,7 @@ function editCust(id){
       document.getElementById("fPayTerm").value=c.payTerm||"";
       document.getElementById("fTax").value=c.tax||"";
       document.getElementById("prodContainer").innerHTML="";
-      // 如果有本地产品就显示，否则从云端加载历史产品
-      if(c.prods&&c.prods.length){
-        c.prods.forEach(function(m){addProduct(m)});
-      } else {
-        // 从云端加载该客户的历史产品
-        var cloudProds = getProductsByName(c.name || '');
-        if(cloudProds.length) {
-          cloudProds.forEach(function(p){
-            addProduct({
-              spec: p.spec || '',
-              price: p.price || '',
-              material: p.material || '',
-              coating: p.coating || ''
-            });
-          });
-        }
-      }
+      if(c.prods&&c.prods.length){c.prods.forEach(function(m){addProduct(m)})}
       updateProdCount();renderProducts();switchView("add");
       return;
     }
