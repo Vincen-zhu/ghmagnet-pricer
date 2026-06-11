@@ -339,24 +339,55 @@ function ensureCustClient() {
 
 // 从云加载客户数据
 async function loadCustomersFromCloud() {
+  // 从云加载，如果 localStorage 已经有数据则不覆盖
   try {
     var c = ensureCustClient();
     if(!c) return;
     var res = await c.db.from(CUST_TABLE).list();
     if(res.success && res.data && res.data.length) {
-      customers = res.data.map(function(row) {
-        return {
-          id: row.cust_id || '',
+      var cloudMap = {};
+      res.data.forEach(function(row) {
+        var id = row.cust_id || '';
+        if(!id) return;
+        var obj = {
+          id: id,
           name: row.cust_name || '',
           contact: row.cust_contact || '',
           phone: row.cust_phone || '',
-          address: row.cust_address || '',
-          remark: row.cust_remark || ''
+          note: row.cust_remark || '',
+          payTerm: row.cust_payterm || '',
+          tax: row.cust_tax || ''
         };
+        // 解析 prods（存在 cust_remark 中，用 \n---prods---\n 分隔）
+        var r = row.cust_remark || '';
+        var sepIdx = r.indexOf('\n---prods---\n');
+        if(sepIdx >= 0) {
+          obj.note = r.substring(0, sepIdx);
+          try { obj.prods = JSON.parse(r.substring(sepIdx + 14)); } catch(e2) { obj.prods = []; }
+        } else {
+          obj.prods = [];
+        }
+        cloudMap[id] = obj;
       });
-      renderList();
+      // 按最后更新时间合并：云和本地都用
+      customers.forEach(function(lc) {
+        if(!lc || !lc.id) return;
+        if(cloudMap[lc.id]) {
+          // 本地有产品就保留本地的
+          if(lc.prods && lc.prods.length) cloudMap[lc.id].prods = lc.prods;
+          if(lc.payTerm) cloudMap[lc.id].payTerm = lc.payTerm;
+          if(lc.tax) cloudMap[lc.id].tax = lc.tax;
+          if(lc.note) cloudMap[lc.id].note = lc.note;
+        } else {
+          cloudMap[lc.id] = lc;
+        }
+      });
+      customers = Object.values(cloudMap);
     }
   } catch(e) { console.error('云加载客户失败', e); }
+  // 保存到 localStorage 并刷新
+  try{ localStorage.setItem('ghm_cust',JSON.stringify(customers)); }catch(e){}
+  renderList();
 }
 
 // 全量同步客户数据到云
@@ -371,16 +402,16 @@ async function syncCustomersToCloud() {
         await c.db.from(CUST_TABLE).delete().eq('id', old.data[i].id);
       }
     }
-    // 插入新数据
+    // 插入新数据（prods 用 JSON 嵌入到 cust_remark 字段，\n---prods---\n 分隔）
     for(var i=0;i<customers.length;i++) {
       var row = customers[i];
+      var remark = (row.note || '') + '\n---prods---\n' + JSON.stringify(row.prods || []);
       await c.db.from(CUST_TABLE).insert().values({
         cust_id: String(row.id || ''),
         cust_name: String(row.name || ''),
         cust_contact: String(row.contact || ''),
         cust_phone: String(row.phone || ''),
-        cust_address: String(row.address || ''),
-        cust_remark: String(row.remark || '')
+        cust_remark: remark
       });
     }
   } catch(e) { console.error('云同步客户失败', e); }
