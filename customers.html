@@ -504,12 +504,12 @@ function addProduct(pre){
 
   var hdr = document.createElement("div");
   hdr.className="prod-header";
-  hdr.innerHTML='<span class="spec">'+(sp||"新产品")+'</span><span class="price">'+(pr?"\u00a5"+pr:"")+'</span><span class="grade">'+(ri?ri:"")+(ri&&rc?"/":"")+(rc?rc:"")+'</span><span class="temp">'+(tp?tp+"\u00b0":"")+'</span><span id="dc_'+idx+'" class="draw-cnt">'+(dw.length?"\uD83D\uDCD0 "+dw.length:"")+'</span><span id="nc_'+idx+'" class="note-cnt">'+(nt?"\uD83D\uDCDD":"")+'</span><span class="arrow">\u25BC</span><button class="rm-prod" onclick="event.stopPropagation();delProduct(\''+idx+'\')">\u2715</button>';
+  hdr.innerHTML='<span class="spec">'+(sp||"新产品")+'</span><span class="price">'+(pr?"\u00a5"+pr:"")+'</span><span class="grade">'+(ri?ri:"")+(ri&&rc?"/":"")+(rc?rc:"")+'</span><span class="temp">'+(tp?tp+"\u00b0":"")+'</span><span id="dc_'+idx+'" class="draw-cnt">'+(dw.length?"\uD83D\uDCD0 "+dw.length:"")+'</span><span id="nc_'+idx+'" class="note-cnt">'+(nt?"\uD83D\uDCDD":"")+'</span><span class="arrow open">\u25BC</span><button class="rm-prod" onclick="event.stopPropagation();delProduct(\''+idx+'\')">\u2715</button>';
   hdr.onclick=function(){toggleProd(this)};
   card.appendChild(hdr);
 
   var body=document.createElement("div");
-  body.className="prod-body";
+  body.className="prod-body open";
   body.innerHTML=
     '<div style="display:grid;grid-template-columns:1.5fr 1fr 0.8fr;gap:4px;margin-bottom:6px">'+
     '<div><label style="font-size:10px;color:#888">规格</label><input id="ps_'+idx+'" value="'+sp+'" style="width:100%;padding:5px;font-size:12px" oninput="syncHdr(\''+idx+'\')"></div>'+
@@ -659,12 +659,7 @@ function quickAddProd(id){
     if(customers[i].id===id){
       editCust(id);
       // After edit opens, add an empty product
-      setTimeout(function(){
-        addProduct();
-        updateProdCount();
-        // Expand all products for visibility
-        document.querySelectorAll(".prod-header").forEach(function(h){var b=h.nextElementSibling;if(b){b.classList.add("open");h.querySelector(".arrow").classList.add("open")}});
-      },100);
+      setTimeout(function(){addProduct();updateProdCount();},100);
       return;
     }
   }
@@ -686,13 +681,7 @@ function editCust(id){
       document.getElementById("prodContainer").innerHTML="";
       if(c.prods&&c.prods.length){c.prods.forEach(function(m){addProduct(m)})}
       updateProdCount();renderProducts();switchView("add");
-      // 自动展开所有产品卡片显示尺寸信息
-      setTimeout(function(){
-        document.querySelectorAll(".prod-header").forEach(function(h){
-          var b=h.nextElementSibling;
-          if(b&&b.classList.contains("prod-body")){b.classList.add("open");h.querySelector(".arrow").classList.add("open")}
-        });
-      },150);
+
       return;
     }
   }
