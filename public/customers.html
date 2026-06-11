@@ -36,7 +36,7 @@ body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:
 .cust-item:hover{box-shadow:0 2px 8px rgba(0,0,0,.09);transform:translateY(-1px)}
 .cust-item .name{font-size:14px;font-weight:600;color:#1a237e;margin-bottom:1px}
 .cust-item .phone{font-size:11px;color:#888}
-.cust-item .prod-summary{font-size:11px;color:#555;margin-top:4px;line-height:1.5;max-height:60px;overflow:hidden}
+.cust-item .prod-summary{font-size:10px;color:#555;margin-top:6px;line-height:1.6;max-height:none;overflow:visible}
 .cust-item .time{font-size:10px;color:#bbb;margin-top:3px}
 .cust-item .del-btn{float:right;background:none;border:none;color:#ddd;font-size:16px;cursor:pointer;padding:0 3px}
 .cust-item .del-btn:hover{color:#d32f2f}
@@ -96,7 +96,7 @@ input[type=file]{display:none}
 .prod-search input{width:100%;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:12px;outline:none;background:rgba(255,255,255,.9)}
 .prod-search input:focus{border-color:#1a73e8}
 .prod-count{font-size:11px;color:#888;margin-bottom:4px}
-.prod-summary-item{display:inline-block;background:#e8edf5;border-radius:4px;padding:1px 6px;font-size:10px;color:#333;margin:1px 2px 1px 0}
+.prod-summary-item{display:inline-block;background:#e8edf5;border-radius:4px;padding:2px 6px;font-size:10px;color:#333;margin:2px 2px 2px 0;line-height:1.5}
 </style>
 <!-- AiPexBase SDK for cloud storage -->
 <script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
@@ -344,7 +344,9 @@ function tempOpts(sel){
 /* ===== PRODUCTS ===== */
 function addProduct(pre){
   var sp = (pre&&pre.spec)||"";
+  var qty = (pre&&pre.quantity)||"";
   var pr = (pre&&pre.price)||"";
+  var mc = (pre&&pre.materialCode)||"";
   var ri = (pre&&pre.realGs)||"";
   var rc = (pre&&pre.reportGs)||"";
   var tp = (pre&&pre.temp)||"";
@@ -369,14 +371,19 @@ function addProduct(pre){
   body.innerHTML=
     '<div style="display:grid;grid-template-columns:1.5fr 1fr 0.8fr;gap:4px;margin-bottom:6px">'+
     '<div><label style="font-size:10px;color:#888">规格</label><input id="ps_'+idx+'" value="'+sp+'" style="width:100%;padding:5px;font-size:12px" oninput="syncHdr(\''+idx+'\')"></div>'+
+    '<div><label style="font-size:10px;color:#888">数量</label><input id="pq_'+idx+'" value="'+qty+'" type="number" min="0" style="width:100%;padding:5px;font-size:12px"></div>'+
     '<div><label style="font-size:10px;color:#888">单价</label><input id="pp_'+idx+'" value="'+pr+'" style="width:100%;padding:5px;font-size:12px" oninput="syncHdr(\''+idx+'\')"></div>'+
-    '<div><label style="font-size:10px;color:#888">耐温</label><select id="pt_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+tempOpts(tp)+'</select></div>'+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px">'+
+    '<div><label style="font-size:10px;color:#888">物料代码</label><input id="pmc_'+idx+'" value="'+mc+'" style="width:100%;padding:5px;font-size:12px"></div>'+
     '<div><label style="font-size:10px;color:#888">性能 (内部)</label><select id="pri_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+gradeOpts(ri)+'</select></div>'+
     '<div><label style="font-size:10px;color:#888">性能 (报客户)</label><select id="prc_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+gradeOpts(rc)+'</select></div>'+
     '</div>'+
-    '<label style="font-size:10px;color:#888">备注 / 要求</label><textarea id="pn_'+idx+'" placeholder="产品特殊要求、技术参数、包装要求等">'+nt+'</textarea>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">'+
+    '<div><label style="font-size:10px;color:#888">耐温</label><select id="pt_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+tempOpts(tp)+'</select></div>'+
+    '<div></div>'+
+    '</div>'+
+    '<label style="font-size:10px;color:#888">备注 / 要求</label><textarea id="pn_'+idx+'" placeholder="产品规格、技术要求、包装要求等">'+nt+'</textarea>'+
     '<div class="prod-draws" id="pd_'+idx+'"></div>'+
     '<div style="display:flex;gap:4px;margin-top:4px"><button onclick="pickDraw(\''+idx+'\')" style="background:none;border:1px dashed #1a73e8;color:#1a73e8;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">+ 添加图纸</button></div>'+
     '<input type="file" accept="image/*" multiple onchange="onDrawPick(event,\''+idx+'\')" style="display:none">';
@@ -412,12 +419,13 @@ function getProducts(){
   var cards=document.querySelectorAll("#prodContainer .prod-card"); var arr=[];
   cards.forEach(function(c){
     var i=c.dataset.idx;
-    var sp=document.getElementById("ps_"+i); var pp=document.getElementById("pp_"+i);
+    var sp=document.getElementById("ps_"+i); var pq=document.getElementById("pq_"+i);
+    var pp=document.getElementById("pp_"+i); var pmc=document.getElementById("pmc_"+i);
     var ri=document.getElementById("pri_"+i); var rc=document.getElementById("prc_"+i);
     var tp=document.getElementById("pt_"+i); var nt=document.getElementById("pn_"+i);
     var dd=document.getElementById("pd_"+i); var dw=[];
     if(dd){dd.querySelectorAll("img").forEach(function(m){dw.push(m.src)})}
-    var s=sp?sp.value.trim():""; if(s) arr.push({spec:s,price:pp?pp.value.trim():"",realGs:ri?ri.value:"",reportGs:rc?rc.value:"",temp:tp?tp.value:"",note:nt?nt.value:"",draws:dw});
+    var s=sp?sp.value.trim():""; if(s) arr.push({spec:s,quantity:pq?pq.value.trim():"",price:pp?pp.value.trim():"",materialCode:pmc?pmc.value.trim():"",realGs:ri?ri.value:"",reportGs:rc?rc.value:"",temp:tp?tp.value:"",note:nt?nt.value:"",draws:dw});
   });
   return arr;
 }
@@ -573,12 +581,12 @@ function renderList(){
     var ps="";
     if(c.prods&&c.prods.length){
       var tags=[];
-      c.prods.slice(0,10).forEach(function(m){
-        var t=(m.spec||"?")+(m.price?" ¥"+m.price:"");
+      c.prods.slice(0,50).forEach(function(m){
+        var t=(m.spec||"?")+(m.quantity?" x"+m.quantity:"")+(m.price?" ¥"+m.price:"")+(m.materialCode?" | 物料:"+m.materialCode:"")+(m.realGs?" | 性能:"+m.realGs:"")+(m.note?" | "+m.note.replace(/.{30}(?=.)/g,"$&..."):"");
         tags.push('<span class="prod-summary-item">'+t+'</span>');
       });
       ps=tags.join("");
-      if(c.prods.length>10) ps+='<span class="prod-summary-item" style="background:#fff3e0">+'+(c.prods.length-10)+'</span>';
+      // showing all products
     }
     
     // 云产品历史
@@ -586,7 +594,7 @@ function renderList(){
     if(cloudProds.length) {
       var tags2 = [];
       cloudProds.slice(0,5).forEach(function(p) {
-        tags2.push('<span class="prod-summary-item" style="background:#e8f5e9">'+p.spec+'</span>');
+        tags2.push('<span class="prod-summary-item" style="background:#e8f5e9">'+p.spec+(p.quantity?" x"+p.quantity:"")+(p.price?" ¥"+p.price:"")+'</span>');
       });
       if(ps) ps += '';
       ps += '<div style="margin-top:3px;font-size:10px;color:#666">📋 历史: ' + tags2.join('');
@@ -620,13 +628,15 @@ function openAdd(){
 
 /* ===== EXPORT ===== */
 function exportCSV(){
-  var rows=[["客户名称","联系人","电话","地址","账期","含税","产品(规格/价格/性能内部/性能报客户/耐温/备注/图纸数)"]];
+  var rows=[["客户名称","联系人","电话","地址","账期","含税","产品(规格/数量/物料代码/单价/性能内部/性能报客户/耐温/备注/图纸数)"]];
   customers.forEach(function(c){
     var ps="";
     if(c.prods&&c.prods.length){
       var tags=[];
       c.prods.forEach(function(m){
         var s=m.spec||"";
+        if(m.quantity) s+="/x"+m.quantity;
+        if(m.materialCode) s+="/物料:"+m.materialCode;
         if(m.price) s+="/¥"+m.price;
         if(m.realGs) s+="/"+m.realGs;
         if(m.reportGs) s+="/"+m.reportGs;

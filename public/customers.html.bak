@@ -36,7 +36,7 @@ body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:
 .cust-item:hover{box-shadow:0 2px 8px rgba(0,0,0,.09);transform:translateY(-1px)}
 .cust-item .name{font-size:14px;font-weight:600;color:#1a237e;margin-bottom:1px}
 .cust-item .phone{font-size:11px;color:#888}
-.cust-item .prod-summary{font-size:10px;color:#555;margin-top:6px;line-height:1.6;max-height:none;overflow:visible}
+.cust-item .prod-summary{font-size:11px;color:#555;margin-top:4px;line-height:1.5;max-height:60px;overflow:hidden}
 .cust-item .time{font-size:10px;color:#bbb;margin-top:3px}
 .cust-item .del-btn{float:right;background:none;border:none;color:#ddd;font-size:16px;cursor:pointer;padding:0 3px}
 .cust-item .del-btn:hover{color:#d32f2f}
@@ -96,19 +96,79 @@ input[type=file]{display:none}
 .prod-search input{width:100%;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:12px;outline:none;background:rgba(255,255,255,.9)}
 .prod-search input:focus{border-color:#1a73e8}
 .prod-count{font-size:11px;color:#888;margin-bottom:4px}
-.prod-summary-item{display:inline-block;background:#e8edf5;border-radius:4px;padding:2px 6px;font-size:10px;color:#333;margin:2px 2px 2px 0;line-height:1.5}
+.prod-summary-item{display:inline-block;background:#e8edf5;border-radius:4px;padding:1px 6px;font-size:10px;color:#333;margin:1px 2px 1px 0}
 </style>
-<!-- AiPexBase SDK for cloud storage -->
-<script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
-<script>
-const CUST_BASE_URL = 'https://baas.kuafuai.net/baas-api';
-const CUST_API_KEY = 'baas_1BQP4GLQ';
-const CUST_TABLE = 'table_customers_v2';
-const PROD_TABLE = 'table_products';
-var allProducts = [];
-</script>
 </head>
 <body>
+
+<script src="https://cdn.jsdelivr.net/npm/aipexbase-js/dist/aipexbase.umd.min.js"></script>
+
+<script>
+// ===== 云端数据库 =====
+var _CC = null;
+try{ _CC = aipexbase.createClient({ baseUrl: "https://baas.kuafuai.net/baas-api", apiKey: "baas_zwbXHCDF" }); }catch(e){}
+var _CL = false, _PS = 50, _CP = 1, _TP = 1;
+
+function cloudLoad(){
+  if(_CL||!_CC){if(!Array.isArray(customers))customers=[];renderList();return}
+  _CL=true;
+  _CC.db.from("customer_records").list().order("id","asc")
+  .then(function(r){
+    _CL=false;
+    if(r.success&&r.data){
+      var lst=Array.isArray(r.data)?r.data:(r.data.data||[]);
+      try{
+        var a=[];
+        lst.forEach(function(x){if(x.data_json){var p=JSON.parse(x.data_json);Array.isArray(p)?a=a.concat(p):a.push(p)}});
+        customers=a;
+      }catch(e){}
+    }
+    Array.isArray(customers)||(customers=[]);
+    renderList();
+  })
+  .catch(function(e){_CL=false;Array.isArray(customers)||(customers=[]);renderList()});
+}
+
+function cloudSave(){
+  if(!_CC){renderList();return}
+  var B=10,a=[],i=0;
+  while(i<customers.length){a.push(customers.slice(i,i+B));i+=B}
+  if(a.length===0)a=[[]];
+  var n=new Date(),ds=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0")+" "+String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0")+":"+String(n.getSeconds()).padStart(2,"0");
+  _CC.db.from("customer_records").list().then(function(r){
+    var lst=[];
+    if(r.success&&r.data)lst=Array.isArray(r.data)?r.data:(r.data.data||[]);
+    // Delete extra old records if batch count decreased
+    var delPromises=[];
+    for(var idx=a.length;idx<lst.length;idx++)delPromises.push(_CC.db.from("customer_records").delete().eq("id",lst[idx].id));
+    Promise.all(delPromises).then(function(){
+      // Update/insert new batches
+      var promises=[];
+      for(var idx=0;idx<a.length;idx++){
+        var j=JSON.stringify(a[idx]);
+        if(idx<lst.length){
+          promises.push(_CC.db.from("customer_records").update().set({data_json:j}).eq("id",lst[idx].id));
+        }else{
+          promises.push(_CC.db.from("customer_records").insert().values({data_json:j,created_at:ds}));
+        }
+      }
+      Promise.all(promises).then(function(){renderList()}).catch(function(){renderList()});
+    }).catch(function(){renderList()});
+  }).catch(function(){renderList()});
+}
+
+function getPageData(){
+  _TP=Math.max(1,Math.ceil(customers.length/_PS));
+  if(_CP>_TP)_CP=_TP;
+  return customers.slice((_CP-1)*_PS,Math.min(_CP*_PS,customers.length));
+}
+</script>
+
+<script>
+(function(){var p="gh888",v=prompt("\u8bf7\u8f93\u5165\u8bbf\u95ee\u5bc6\u7801\uff1a");if(v!==p){document.body.innerHTML="<div style=\"display:flex;align-items:center;justify-content:center;height:100vh;font-size:18px;color:#999\">\ud83d\udd12 \u5bc6\u7801\u9519\u8bef\uff0c\u8bf7\u5237\u65b0\u91cd\u8bd5</div>";throw new Error("denied")}})();
+</script>
+
+
 
 <div class="logo-header" id="logoHeader">
   <img id="logoImg" src="" alt="">
@@ -184,131 +244,8 @@ var LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0Z
 var customers = [];
 var editId = null;
 
-var custClient = null;
-function ensureCustClient() {
-  if(!custClient && typeof aipexbase !== 'undefined') {
-    custClient = aipexbase.createClient({ baseUrl: CUST_BASE_URL, apiKey: CUST_API_KEY });
-  }
-  return custClient;
-}
-
-// 从云加载客户数据
-async function loadCustomersFromCloud() {
-  try {
-    var c = ensureCustClient();
-    if(!c) return;
-    var res = await c.db.from(CUST_TABLE).list();
-    if(res.success && res.data && res.data.length) {
-      customers = res.data.map(function(row) {
-        return {
-          id: row.cust_id || '',
-          name: row.cust_name || '',
-          contact: row.cust_contact || '',
-          phone: row.cust_phone || '',
-          address: row.cust_address || '',
-          remark: row.cust_remark || ''
-        };
-      });
-      renderList();
-    }
-  } catch(e) { console.error('云加载客户失败', e); }
-}
-
-// 全量同步客户数据到云
-async function syncCustomersToCloud() {
-  try {
-    var c = ensureCustClient();
-    if(!c) return;
-    // 删掉旧数据
-    var old = await c.db.from(CUST_TABLE).list();
-    if(old.success && old.data) {
-      for(var i=0;i<old.data.length;i++) {
-        await c.db.from(CUST_TABLE).delete().eq('id', old.data[i].id);
-      }
-    }
-    // 插入新数据
-    for(var i=0;i<customers.length;i++) {
-      var row = customers[i];
-      await c.db.from(CUST_TABLE).insert().values({
-        cust_id: String(row.id || ''),
-        cust_name: String(row.name || ''),
-        cust_contact: String(row.contact || ''),
-        cust_phone: String(row.phone || ''),
-        cust_address: String(row.address || ''),
-        cust_remark: String(row.remark || '')
-      });
-    }
-  } catch(e) { console.error('云同步客户失败', e); }
-}
-
-// 从云加载产品历史
-async function loadProductsFromCloud() {
-  try {
-    var c = ensureCustClient();
-    if(!c) return;
-    var res = await c.db.from(PROD_TABLE).list();
-    if(res.success && res.data) {
-      allProducts = res.data.map(function(row) {
-        return {
-          cust_name: row.cust_name || '',
-          phone: row.cust_phone || '',
-          product: row.product_name || '',
-          spec: row.spec || '',
-          material: row.material || '',
-          coating: row.coating || '',
-          price: row.unit_price || '',
-          price_type: row.price_type || '',
-          gauss: row.gauss || '',
-          remark: row.remark || ''
-        };
-      });
-    }
-  } catch(e) { console.error('加载产品失败', e); }
-  if(typeof renderList==='function') renderList();
-}
-
-function getProductsByName(name) {
-  if(!name || !allProducts.length) return [];
-  return allProducts.filter(function(p) { return p.cust_name.indexOf(name) >= 0 || name.indexOf(p.cust_name) >= 0; });
-}
-
-function mergeCloudProds(){
-  if(!window.customers||!window.allProducts) return;
-  var map={};
-  window.allProducts.forEach(function(p){
-    var n=p.cust_name; if(!n) return;
-    if(!map[n]) map[n]=[];
-    map[n].push({spec:p.spec||'',price:p.price||'',realGs:p.material||p.gauss||'',reportGs:p.gauss||'',temp:'',note:(p.coating||'')+(p.remark?' | '+p.remark:''),draws:[]});
-  });
-  var merged=0;
-  window.customers.forEach(function(c){ if(map[c.name]){ c.prods=map[c.name]; merged++; } });
-  try{ localStorage.setItem('ghm_cust',JSON.stringify(window.customers)); }catch(e){}
-  console.log('merged '+merged+' customers');
-  return merged;
-}
-
-var _loadMergeTimer=null;
-function load(){
-  try{ var d=localStorage.getItem("ghm_cust"); if(d) customers=JSON.parse(d); }catch(e){}
-  if(!Array.isArray(customers)) customers=[];
-  loadCustomersFromCloud();
-  loadProductsFromCloud();
-  if(_loadMergeTimer) clearInterval(_loadMergeTimer);
-  _loadMergeTimer=setInterval(function(){
-    if(window.customers&&window.customers.length&&window.allProducts&&window.allProducts.length){
-      mergeCloudProds();
-      if(typeof renderList==='function') renderList();
-      clearInterval(_loadMergeTimer);
-      _loadMergeTimer=null;
-    }
-  },500);
-  setTimeout(function(){ if(_loadMergeTimer){ clearInterval(_loadMergeTimer); _loadMergeTimer=null; } },15000);
-}
-function save(){
-  localStorage.setItem("ghm_cust",JSON.stringify(customers));
-  syncCustomersToCloud();
-  renderList();
-}
+function load(){ cloudLoad(); }
+function save(){ cloudSave(); }
 function idgen(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
 function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); },2000); }
 
@@ -344,9 +281,7 @@ function tempOpts(sel){
 /* ===== PRODUCTS ===== */
 function addProduct(pre){
   var sp = (pre&&pre.spec)||"";
-  var qty = (pre&&pre.quantity)||"";
   var pr = (pre&&pre.price)||"";
-  var mc = (pre&&pre.materialCode)||"";
   var ri = (pre&&pre.realGs)||"";
   var rc = (pre&&pre.reportGs)||"";
   var tp = (pre&&pre.temp)||"";
@@ -371,19 +306,14 @@ function addProduct(pre){
   body.innerHTML=
     '<div style="display:grid;grid-template-columns:1.5fr 1fr 0.8fr;gap:4px;margin-bottom:6px">'+
     '<div><label style="font-size:10px;color:#888">规格</label><input id="ps_'+idx+'" value="'+sp+'" style="width:100%;padding:5px;font-size:12px" oninput="syncHdr(\''+idx+'\')"></div>'+
-    '<div><label style="font-size:10px;color:#888">数量</label><input id="pq_'+idx+'" value="'+qty+'" type="number" min="0" style="width:100%;padding:5px;font-size:12px"></div>'+
     '<div><label style="font-size:10px;color:#888">单价</label><input id="pp_'+idx+'" value="'+pr+'" style="width:100%;padding:5px;font-size:12px" oninput="syncHdr(\''+idx+'\')"></div>'+
+    '<div><label style="font-size:10px;color:#888">耐温</label><select id="pt_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+tempOpts(tp)+'</select></div>'+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px">'+
-    '<div><label style="font-size:10px;color:#888">物料代码</label><input id="pmc_'+idx+'" value="'+mc+'" style="width:100%;padding:5px;font-size:12px"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">'+
     '<div><label style="font-size:10px;color:#888">性能 (内部)</label><select id="pri_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+gradeOpts(ri)+'</select></div>'+
     '<div><label style="font-size:10px;color:#888">性能 (报客户)</label><select id="prc_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+gradeOpts(rc)+'</select></div>'+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">'+
-    '<div><label style="font-size:10px;color:#888">耐温</label><select id="pt_'+idx+'" style="width:100%;padding:5px;font-size:12px">'+tempOpts(tp)+'</select></div>'+
-    '<div></div>'+
-    '</div>'+
-    '<label style="font-size:10px;color:#888">备注 / 要求</label><textarea id="pn_'+idx+'" placeholder="产品规格、技术要求、包装要求等">'+nt+'</textarea>'+
+    '<label style="font-size:10px;color:#888">备注 / 要求</label><textarea id="pn_'+idx+'" placeholder="产品特殊要求、技术参数、包装要求等">'+nt+'</textarea>'+
     '<div class="prod-draws" id="pd_'+idx+'"></div>'+
     '<div style="display:flex;gap:4px;margin-top:4px"><button onclick="pickDraw(\''+idx+'\')" style="background:none;border:1px dashed #1a73e8;color:#1a73e8;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">+ 添加图纸</button></div>'+
     '<input type="file" accept="image/*" multiple onchange="onDrawPick(event,\''+idx+'\')" style="display:none">';
@@ -419,13 +349,12 @@ function getProducts(){
   var cards=document.querySelectorAll("#prodContainer .prod-card"); var arr=[];
   cards.forEach(function(c){
     var i=c.dataset.idx;
-    var sp=document.getElementById("ps_"+i); var pq=document.getElementById("pq_"+i);
-    var pp=document.getElementById("pp_"+i); var pmc=document.getElementById("pmc_"+i);
+    var sp=document.getElementById("ps_"+i); var pp=document.getElementById("pp_"+i);
     var ri=document.getElementById("pri_"+i); var rc=document.getElementById("prc_"+i);
     var tp=document.getElementById("pt_"+i); var nt=document.getElementById("pn_"+i);
     var dd=document.getElementById("pd_"+i); var dw=[];
     if(dd){dd.querySelectorAll("img").forEach(function(m){dw.push(m.src)})}
-    var s=sp?sp.value.trim():""; if(s) arr.push({spec:s,quantity:pq?pq.value.trim():"",price:pp?pp.value.trim():"",materialCode:pmc?pmc.value.trim():"",realGs:ri?ri.value:"",reportGs:rc?rc.value:"",temp:tp?tp.value:"",note:nt?nt.value:"",draws:dw});
+    var s=sp?sp.value.trim():""; if(s) arr.push({spec:s,price:pp?pp.value.trim():"",realGs:ri?ri.value:"",reportGs:rc?rc.value:"",temp:tp?tp.value:"",note:nt?nt.value:"",draws:dw});
   });
   return arr;
 }
@@ -532,8 +461,6 @@ function editCust(id){
   for(var i=0;i<customers.length;i++){
     if(customers[i].id===id){
       var c=customers[i];editId=id;
-      // 如果 prods 为空，尝试从云端产品实时匹配
-      if(!c.prods||!c.prods.length){var cp=getProductsByName(c.name||'');if(cp&&cp.length){c.prods=cp.map(function(p){return{spec:p.spec||'',price:p.price||'',realGs:p.material||p.gauss||'',reportGs:p.gauss||'',temp:'',note:(p.coating||'')+(p.remark?' | '+p.remark:''),draws:[]}})};try{localStorage.setItem('ghm_cust',JSON.stringify(customers))}catch(e){}}}
       document.getElementById("formTitle").textContent="编辑客户";
       document.getElementById("fName").value=c.name||"";
       document.getElementById("fContact").value=c.contact||"";
@@ -567,41 +494,39 @@ function clearForm(){
 
 /* ===== LIST ===== */
 function renderList(){
+  var kw=document.getElementById("searchInput")?document.getElementById("searchInput").value.trim().toLowerCase():"";
+  var fd=kw?customers.filter(function(c){return c.n&&c.n.toLowerCase().indexOf(kw)>-1||c.p&&c.p.indexOf(kw)>-1}):customers;
+  _TP=Math.max(1,Math.ceil(fd.length/_PS));
+  if(_CP>_TP)_CP=_TP;
+  var st=(_CP-1)*_PS;
+  var en=Math.min(st+_PS,fd.length);
+  var pd=fd.slice(st,en);
   var q=document.getElementById("searchInput").value.trim().toLowerCase();
   var el=document.getElementById("customerList");
   var arr=customers;
   if(q) arr=customers.filter(function(c){return (c.name||"").toLowerCase().indexOf(q)>=0||(c.phone||"").indexOf(q)>=0||(c.contact||"").toLowerCase().indexOf(q)>=0});
   arr.sort(function(a,b){return (b.updated||"").localeCompare(a.updated||"")});
+  _TP=Math.max(1,Math.ceil(arr.length/_PS));
+  _CP=Math.min(_CP,_TP);
+  var _st=(_CP-1)*_PS;
+  var _en=Math.min(_st+_PS,arr.length);
+  var pg=arr.slice(_st,_en);
   if(arr.length===0){
     el.innerHTML='<div class="empty-state">'+(q?"没有匹配的客户":"还没有客户<br><button class=\"btn btn-primary btn-sm\" onclick=\"openAdd()\" style=\"margin-top:8px\">+ 添加第一个</button>")+'</div>';
     return;
   }
   var h="";
-  arr.forEach(function(c){
+  pg.forEach(function(c){
     var ps="";
     if(c.prods&&c.prods.length){
       var tags=[];
-      c.prods.slice(0,50).forEach(function(m){
-        var t=(m.spec||"?")+(m.quantity?" x"+m.quantity:"")+(m.price?" ¥"+m.price:"")+(m.materialCode?" | 物料:"+m.materialCode:"")+(m.realGs?" | 性能:"+m.realGs:"")+(m.note?" | "+m.note.replace(/.{30}(?=.)/g,"$&..."):"");
+      c.prods.slice(0,10).forEach(function(m){
+        var t=(m.spec||"?")+(m.price?" ¥"+m.price:"");
         tags.push('<span class="prod-summary-item">'+t+'</span>');
       });
       ps=tags.join("");
-      // showing all products
+      if(c.prods.length>10) ps+='<span class="prod-summary-item" style="background:#fff3e0">+'+(c.prods.length-10)+'</span>';
     }
-    
-    // 云产品历史
-    var cloudProds = getProductsByName(c.name || '');
-    if(cloudProds.length) {
-      var tags2 = [];
-      cloudProds.slice(0,5).forEach(function(p) {
-        tags2.push('<span class="prod-summary-item" style="background:#e8f5e9">'+p.spec+(p.quantity?" x"+p.quantity:"")+(p.price?" ¥"+p.price:"")+'</span>');
-      });
-      if(ps) ps += '';
-      ps += '<div style="margin-top:3px;font-size:10px;color:#666">📋 历史: ' + tags2.join('');
-      if(cloudProds.length > 5) ps += '<span class="prod-summary-item" style="background:#e8f5e9">+'+(cloudProds.length-5)+'</span>';
-      ps += '</div>';
-    }
-    
     var info="";
     if(c.payTerm) info+='<div style="font-size:11px;color:#999;margin-top:2px">\u{1F4C5} 账期: '+c.payTerm+'天</div>';
     if(c.tax) info+='<div style="font-size:11px;color:#999;margin-top:2px">\u{1F4B0} '+(c.tax==="1"?"含税":"不含税")+'</div>';
@@ -612,7 +537,7 @@ function renderList(){
     h+='<div class="cust-item" onclick="editCust(\''+c.id+'\')">';
     h+='<button class="del-btn" onclick="event.stopPropagation();delCust(\''+c.id+'\')">\u2715</button>';
     h+='<div class="name">'+(c.name||"(未命名)")+'</div>';
-    h+='<div class="phone">'+(c.phone||c.contact?((c.phone||"")+(c.contact?" \u00b7 "+c.contact:"")).trim():(cloudProds.length && cloudProds[0].phone?'☎'+cloudProds[0].phone:''))+'</div>';
+    h+='<div class="phone">'+(c.phone||c.contact?((c.phone||"")+(c.contact?" \u00b7 "+c.contact:"")).trim():"")+'</div>';
     if(c.prods&&c.prods.length) h+='<div style="font-size:11px;color:#888;margin-top:2px">\uD83E\uDEF2 '+c.prods.length+' 款产品 <button class="add-prod-btn" onclick="event.stopPropagation();quickAddProd(\''+c.id+'\')">+ 添加产品</button></div>';
     if(ps) h+='<div class="prod-summary">'+ps+'</div>';
     h+=info;
@@ -620,6 +545,17 @@ function renderList(){
     h+='</div>';
   });
   el.innerHTML=h;
+  // Pagination controls
+  if(arr.length>_PS){
+    var pgHtml='<div style="text-align:center;margin:8px 0;display:flex;justify-content:center;gap:4px;font-size:12px">';
+    pgHtml+='<button class="btn btn-sm btn-outline" onclick="_CP=1;renderList()">&#x25C0;&#x25C0;</button>';
+    pgHtml+='<button class="btn btn-sm btn-outline" onclick="_CP=Math.max(1,_CP-1);renderList()">&#x25C0;</button>';
+    pgHtml+='<span style="padding:3px 8px;color:#555">'+_CP+'/'+_TP+'</span>';
+    pgHtml+='<button class="btn btn-sm btn-outline" onclick="_CP=Math.min(_TP,_CP+1);renderList()">&#x25B6;</button>';
+    pgHtml+='<button class="btn btn-sm btn-outline" onclick="_CP=_TP;renderList()">&#x25B6;&#x25B6;</button>';
+    pgHtml+='</div>';
+    el.innerHTML+=pgHtml;
+  }
 }
 
 function openAdd(){
@@ -628,15 +564,13 @@ function openAdd(){
 
 /* ===== EXPORT ===== */
 function exportCSV(){
-  var rows=[["客户名称","联系人","电话","地址","账期","含税","产品(规格/数量/物料代码/单价/性能内部/性能报客户/耐温/备注/图纸数)"]];
+  var rows=[["客户名称","联系人","电话","地址","账期","含税","产品(规格/价格/性能内部/性能报客户/耐温/备注/图纸数)"]];
   customers.forEach(function(c){
     var ps="";
     if(c.prods&&c.prods.length){
       var tags=[];
       c.prods.forEach(function(m){
         var s=m.spec||"";
-        if(m.quantity) s+="/x"+m.quantity;
-        if(m.materialCode) s+="/物料:"+m.materialCode;
         if(m.price) s+="/¥"+m.price;
         if(m.realGs) s+="/"+m.realGs;
         if(m.reportGs) s+="/"+m.reportGs;
@@ -667,7 +601,7 @@ function importData(){
     save();document.getElementById("importText").value="";toast("导入 "+d.length+" 条");switchView("list");
   }catch(e){toast("格式错误")}
 }
-function clearAll(){if(!confirm("确定清空所有？不可恢复！"))return;customers=[];save();toast("已清空")}
+function clearAll(){if(!confirm("确定清空所有？不可恢复！"))return;customers=[];if(typeof cloudSave==='function')cloudSave();else save();toast("已清空")}
 function copyText(t){if(navigator.clipboard){navigator.clipboard.writeText(t);return}var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta)}
 
 /* FLOATING */
