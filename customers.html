@@ -100,8 +100,8 @@ body{
 .prod-summary-item{
   display:inline-block;background:#f1f5f9;border-radius:6px;
   padding:1px 7px;font-size:11px;color:var(--text);margin:1px 3px 1px 0;
-  line-height:1.6;white-space:nowrap;max-width:280px;
-  overflow:hidden;text-overflow:ellipsis;vertical-align:middle
+  line-height:1.6;white-space:normal;max-width:100%;
+  word-break:break-all;vertical-align:middle
 }
 /* Card */
 .card{
@@ -686,6 +686,13 @@ function editCust(id){
       document.getElementById("prodContainer").innerHTML="";
       if(c.prods&&c.prods.length){c.prods.forEach(function(m){addProduct(m)})}
       updateProdCount();renderProducts();switchView("add");
+      // 自动展开所有产品卡片显示尺寸信息
+      setTimeout(function(){
+        document.querySelectorAll(".prod-header").forEach(function(h){
+          var b=h.nextElementSibling;
+          if(b&&b.classList.contains("prod-body")){b.classList.add("open");h.querySelector(".arrow").classList.add("open")}
+        });
+      },150);
       return;
     }
   }
